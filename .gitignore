@@ -1,0 +1,33 @@
+node_modules/
+dist/
+coverage/
+.cdk.out/
+cdk.out/
+.aws-sam/
+.DS_Store
+*.log
+*.pid
+*.seed
+*.tgz
+*.tar
+*.tar.xz
+*.zip
+.env
+.env.*
+!.env.example
+.cache/
+.npm/
+.tmp/
+.temp/
+tmp/
+vitest.config.ts.timestamp-*
+
+# Local binary cache
+.postgrest-lite/
+
+# Editor
+.idea/
+.vscode/
+
+# Runtime leftovers
+.docker/

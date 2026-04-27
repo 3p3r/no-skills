@@ -1,0 +1,10 @@
+services:
+  postgrest-lite:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      POSTGREST_LITE_HOST: 0.0.0.0
+      POSTGREST_LITE_PORT: 8080
+    ports:
+      - "8080:8080"
