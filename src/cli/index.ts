@@ -30,6 +30,9 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     .option('--ready-timeout-ms <ms>')
     .option('--log-level <level>')
     .option('--json')
+    .option('--openapi [enabled]')
+    .option('--openapi-path <path>')
+    .option('--skills [enabled]')
     .action(async (options) => {
       process.exitCode = await runStartCommand(options);
     });

@@ -72,7 +72,8 @@ describe.skipIf(!dockerAvailable)('lambda image wiring', () => {
     const response = await fetch(`http://127.0.0.1:${hostPort}/`);
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.endpoints.ready).toContain('/ready');
+    expect(body.service).toBe('postgrest-lite');
+    expect(body.postgrestVersion).toBeTruthy();
   }, 300000);
 });
 

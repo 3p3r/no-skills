@@ -20,6 +20,10 @@ export interface StartConfig {
   readyTimeoutMs: number;
   logLevel: LogLevel;
   json: boolean;
+  httpEnabled: boolean;
+  openapiEnabled: boolean;
+  openapiPath: string;
+  skillsEnabled: boolean;
 }
 
 export interface DownloadConfig {
@@ -43,6 +47,23 @@ export interface DoctorConfig {
 type PrimitiveOptions = Record<string, unknown>;
 
 export function resolveStartConfig(options: PrimitiveOptions): StartConfig {
+  const httpEnabled = readBoolean(options.http, process.env.POSTGREST_LITE_HTTP, true);
+  const openapiEnabled = readBoolean(options.openapi, process.env.POSTGREST_LITE_OPENAPI, true);
+  let skillsEnabled = readBoolean(options.skills, process.env.POSTGREST_LITE_SKILLS, true);
+
+  if (!openapiEnabled && skillsEnabled) {
+    if (
+      options.skills === true ||
+      options.skills === 'true' ||
+      (process.env.POSTGREST_LITE_SKILLS !== undefined &&
+        ['1', 'true', 'yes', 'on'].includes(process.env.POSTGREST_LITE_SKILLS.toLowerCase()))
+    ) {
+      // eslint-disable-next-line no-console
+      console.warn('WARN: Skills require OpenAPI. Disabling skills.');
+    }
+    skillsEnabled = false;
+  }
+
   const config: StartConfig = {
     host: readString(options.host, process.env.POSTGREST_LITE_HOST, '127.0.0.1'),
     port: readPort(options.port, process.env.POSTGREST_LITE_PORT, 8080, 'port'),
@@ -57,6 +78,10 @@ export function resolveStartConfig(options: PrimitiveOptions): StartConfig {
     readyTimeoutMs: readNonNegativeInteger(options.readyTimeoutMs, process.env.POSTGREST_LITE_READY_TIMEOUT_MS, 30000, 'ready-timeout-ms'),
     logLevel: readLogLevel(options.logLevel, process.env.POSTGREST_LITE_LOG_LEVEL, 'info'),
     json: readBoolean(options.json, process.env.POSTGREST_LITE_JSON, false),
+    httpEnabled,
+    openapiEnabled,
+    openapiPath: readString(options.openapiPath, process.env.POSTGREST_LITE_OPENAPI_PATH, '/openapi.json'),
+    skillsEnabled,
   };
 
   validatePortUniqueness([config.port, config.pgPort, config.postgrestPort, config.adminPort]);

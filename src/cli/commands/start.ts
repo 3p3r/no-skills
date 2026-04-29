@@ -1,10 +1,7 @@
-import { serve } from '@hono/node-server';
-
 import { CliError } from '../../runtime/errors';
 import { Logger } from '../../runtime/logger';
-import { createApp } from '../../server/app';
 import { resolveStartConfig } from '../../runtime/config';
-import { ManagedHttpServer, RuntimeManager } from '../../runtime/runtimeManager';
+import { RuntimeManager } from '../../runtime/runtimeManager';
 
 export async function runStartCommand(options: Record<string, unknown>): Promise<number> {
   const config = resolveStartConfig(options);
@@ -16,19 +13,7 @@ export async function runStartCommand(options: Record<string, unknown>): Promise
 
   try {
     await runtimeManager.startCore();
-
-    const app = createApp(runtimeManager);
-    const server = serve({
-      fetch: app.fetch,
-      hostname: config.host,
-      port: config.port,
-    });
-    runtimeManager.registerHttpServer(server as ManagedHttpServer);
-
-    await new Promise<void>((resolve, reject) => {
-      server.once('listening', () => resolve());
-      server.once('error', reject);
-    });
+    await runtimeManager.start();
 
     emitReadyMessage(config.json, runtimeManager);
     return await waitForTermination(runtimeManager, logger);
@@ -70,14 +55,24 @@ async function waitForTermination(runtimeManager: RuntimeManager, logger: Logger
 
 function emitReadyMessage(json: boolean, runtimeManager: RuntimeManager): void {
   const snapshot = runtimeManager.getSnapshot();
+  const config = runtimeManager.getConfig();
+  const endpoints: Record<string, string> = {
+    root: `http://${snapshot.host}:${snapshot.port}/`,
+    health: `http://${snapshot.host}:${snapshot.port}/health`,
+    ready: `http://${snapshot.host}:${snapshot.port}/ready`,
+    api: `http://${snapshot.host}:${snapshot.port}/api`,
+  };
+
+  if (config.openapiEnabled) {
+    endpoints.openapi = `http://${snapshot.host}:${snapshot.port}${config.openapiPath}`;
+  }
+  if (config.skillsEnabled) {
+    endpoints.skills = `http://${snapshot.host}:${snapshot.port}/skills/SKILL.md`;
+  }
+
   const payload = {
     status: 'ready',
-    endpoints: {
-      root: `http://${snapshot.host}:${snapshot.port}/`,
-      health: `http://${snapshot.host}:${snapshot.port}/health`,
-      ready: `http://${snapshot.host}:${snapshot.port}/ready`,
-      api: `http://${snapshot.host}:${snapshot.port}/api`,
-    },
+    endpoints,
     postgrest: {
       http: `http://127.0.0.1:${snapshot.postgrestPort}`,
       admin: `http://127.0.0.1:${snapshot.adminPort}`,
@@ -92,10 +87,16 @@ function emitReadyMessage(json: boolean, runtimeManager: RuntimeManager): void {
   }
 
   console.log('postgrest-lite is ready');
-  console.log(`  root: ${payload.endpoints.root}`);
-  console.log(`  health: ${payload.endpoints.health}`);
-  console.log(`  ready: ${payload.endpoints.ready}`);
-  console.log(`  api: ${payload.endpoints.api}`);
+  console.log(`  root: ${endpoints.root}`);
+  console.log(`  health: ${endpoints.health}`);
+  console.log(`  ready: ${endpoints.ready}`);
+  console.log(`  api: ${endpoints.api}`);
+  if (config.openapiEnabled) {
+    console.log(`  openapi: ${endpoints.openapi}`);
+  }
+  if (config.skillsEnabled) {
+    console.log(`  skills: ${endpoints.skills}`);
+  }
   console.log(`  postgres wire: ${payload.postgresWire}`);
   console.log(`  postgrest binary: ${payload.postgrest.binaryPath}`);
 }

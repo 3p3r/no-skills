@@ -21,16 +21,14 @@ describe.sequential('runtime startup', () => {
 
     const readyResponse = await fetch(`http://${runtime.config.host}:${runtime.config.port}/ready`);
     expect(readyResponse.status).toBe(200);
-    expect(await readyResponse.json()).toMatchObject({
+    expect(await readyResponse.json()).toEqual({
       ready: true,
-      pgliteReachable: true,
-      postgrestReady: true,
     });
 
     const rootResponse = await fetch(`http://${runtime.config.host}:${runtime.config.port}/`);
     expect(rootResponse.status).toBe(200);
     const rootPayload = await rootResponse.json();
-    expect(rootPayload.versions.postgrest).toBe(DEFAULT_POSTGREST_VERSION);
-    expect(rootPayload.ready).toBe(true);
+    expect(rootPayload.postgrestVersion).toBe(DEFAULT_POSTGREST_VERSION);
+    expect(rootPayload.service).toBe('postgrest-lite');
   }, 120000);
 });

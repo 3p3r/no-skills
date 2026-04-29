@@ -1,12 +1,8 @@
-import { once } from 'node:events';
-import { serve } from '@hono/node-server';
-
 import { runDoctorCommand } from '../../src/cli/commands/doctor';
 import { resolveStartConfig, StartConfig } from '../../src/runtime/config';
 import { Logger } from '../../src/runtime/logger';
 import { getFreePort } from '../../src/runtime/network';
-import { ManagedHttpServer, RuntimeManager } from '../../src/runtime/runtimeManager';
-import { createApp } from '../../src/server/app';
+import { RuntimeManager } from '../../src/runtime/runtimeManager';
 
 export async function buildTestConfig(overrides: Partial<StartConfig> = {}): Promise<StartConfig> {
   const host = overrides.host ?? '127.0.0.1';
@@ -43,15 +39,7 @@ export async function startTestRuntime(overrides: Partial<StartConfig> = {}): Pr
   );
 
   await runtimeManager.startCore();
-
-  const app = createApp(runtimeManager);
-  const server = serve({
-    fetch: app.fetch,
-    hostname: config.host,
-    port: config.port,
-  });
-  runtimeManager.registerHttpServer(server as ManagedHttpServer);
-  await once(server, 'listening');
+  await runtimeManager.start();
 
   return {
     config,

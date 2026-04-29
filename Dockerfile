@@ -44,4 +44,4 @@ ENV NODE_ENV=production \
 
 EXPOSE 8080
 
-CMD ["node", "bin/postgrest-lite.js", "start"]
+CMD ["node", "--harmony-iterator-helpers", "bin/postgrest-lite.js", "start"]
