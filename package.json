@@ -20,7 +20,6 @@
     "clean": "rm -rf dist coverage cdk.out",
     "dev": "tsx src/cli/index.ts start",
     "start": "node bin/postgrest-lite.js start",
-    "download": "node bin/postgrest-lite.js download",
     "doctor": "node bin/postgrest-lite.js doctor",
     "version:cli": "node bin/postgrest-lite.js version",
     "pretest": "npm run build",

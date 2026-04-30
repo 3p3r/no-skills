@@ -39,7 +39,10 @@ export class RuntimeManager {
     });
 
     if (!this.config.postgrestBin) {
-      throw new CliError("PostgREST binary path is required. Run `postgrest-lite download` first.", 1);
+      throw new CliError(
+        "PostgREST binary path is required. Provide it with --postgrest-bin or POSTGREST_LITE_POSTGREST_BIN.",
+        1,
+      );
     }
 
     this.postgrestRuntime = await startPostgrestRuntime({

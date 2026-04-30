@@ -1,7 +1,7 @@
 FROM node:20-bookworm-slim AS build
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends xz-utils ca-certificates \
+  && apt-get install -y --no-install-recommends xz-utils ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -12,7 +12,11 @@ RUN npm ci
 COPY . .
 RUN npm run build
 RUN mkdir -p /opt/postgrest-lite/bin \
-  && node dist/src/cli/index.js download --postgrest-bin-dir /opt/postgrest-lite/bin
+  && curl -fsSL -o /tmp/postgrest.tar.xz \
+     https://github.com/PostgREST/postgrest/releases/download/v12.2.3/postgrest-v12.2.3-linux-static-x86-64.tar.xz \
+  && tar -xJf /tmp/postgrest.tar.xz -C /opt/postgrest-lite/bin \
+  && rm /tmp/postgrest.tar.xz \
+  && chmod +x /opt/postgrest-lite/bin/postgrest
 
 FROM node:20-bookworm-slim AS runtime
 

@@ -51,15 +51,6 @@ curl http://127.0.0.1:8080/api/todos
 curl http://127.0.0.1:8080/api/rpc/hello -X POST
 ```
 
-### `postgrest-lite download`
-
-Downloads or resolves the pinned PostgREST binary into the CLI cache or a custom directory.
-
-```bash
-node bin/postgrest-lite.js download
-node bin/postgrest-lite.js download --postgrest-bin-dir /tmp/postgrest-bin --force
-```
-
 ### `postgrest-lite doctor`
 
 Validates binary resolution, bootstrap SQL readability, and port availability without starting the runtime.
