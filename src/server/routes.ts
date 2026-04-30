@@ -1,30 +1,29 @@
-import { Hono } from 'hono';
-import { describeRoute, resolver } from 'hono-openapi';
-import { z } from 'zod';
+import type { Hono } from "hono";
+import { describeRoute, resolver } from "hono-openapi";
+import { z } from "zod";
 
-import { CLI_NAME } from '../runtime/packageInfo';
-import { RuntimeManager } from '../runtime/runtimeManager';
-import { proxyPostgrestRequest } from './postgrestProxy';
+import { CLI_NAME } from "../runtime/packageInfo";
+import type { RuntimeManager } from "../runtime/runtimeManager";
+import { proxyPostgrestRequest } from "./postgrestProxy";
 
-const HealthResponseSchema = z.object({ status: z.literal('healthy') });
+const HealthResponseSchema = z.object({ status: z.literal("healthy") });
 const ReadyResponseSchema = z.object({ ready: z.boolean() });
 const MetadataResponseSchema = z.object({
   service: z.string(),
   version: z.string(),
-  postgrestVersion: z.string(),
   pgliteVersion: z.string(),
 });
 
 export function registerRoutes(app: Hono, runtimeManager: RuntimeManager): void {
   app.get(
-    '/',
+    "/",
     describeRoute({
-      description: 'Service metadata and runtime snapshot.',
+      description: "Service metadata and runtime snapshot.",
       responses: {
         200: {
-          description: 'Metadata object',
+          description: "Metadata object",
           content: {
-            'application/json': {
+            "application/json": {
               schema: resolver(MetadataResponseSchema),
             },
           },
@@ -36,21 +35,20 @@ export function registerRoutes(app: Hono, runtimeManager: RuntimeManager): void 
       return context.json({
         service: CLI_NAME,
         version: snapshot.cliVersion,
-        postgrestVersion: snapshot.postgrestVersion,
-        pgliteVersion: snapshot.pgliteVersion ?? 'unknown',
+        pgliteVersion: snapshot.pgliteVersion ?? "unknown",
       });
     },
   );
 
   app.get(
-    '/health',
+    "/health",
     describeRoute({
-      description: 'Liveness probe. Returns 200 if the HTTP server is running.',
+      description: "Liveness probe. Returns 200 if the HTTP server is running.",
       responses: {
         200: {
-          description: 'Service is healthy',
+          description: "Service is healthy",
           content: {
-            'application/json': {
+            "application/json": {
               schema: resolver(HealthResponseSchema),
             },
           },
@@ -58,19 +56,19 @@ export function registerRoutes(app: Hono, runtimeManager: RuntimeManager): void 
       },
     }),
     (context) => {
-      return context.json({ status: 'healthy' });
+      return context.json({ status: "healthy" });
     },
   );
 
   app.get(
-    '/ready',
+    "/ready",
     describeRoute({
-      description: 'Readiness probe. Returns 200 if PGlite, PostgREST, and the HTTP server are all ready.',
+      description: "Readiness probe. Returns 200 if PGlite, PostgREST, and the HTTP server are all ready.",
       responses: {
         200: {
-          description: 'Readiness status',
+          description: "Readiness status",
           content: {
-            'application/json': {
+            "application/json": {
               schema: resolver(ReadyResponseSchema),
             },
           },
@@ -83,6 +81,6 @@ export function registerRoutes(app: Hono, runtimeManager: RuntimeManager): void 
     },
   );
 
-  app.all('/api', (context) => proxyPostgrestRequest(context, runtimeManager));
-  app.all('/api/*', (context) => proxyPostgrestRequest(context, runtimeManager));
+  app.all("/api", (context) => proxyPostgrestRequest(context, runtimeManager));
+  app.all("/api/*", (context) => proxyPostgrestRequest(context, runtimeManager));
 }

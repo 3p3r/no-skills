@@ -1,34 +1,34 @@
-import { CliError } from '../../runtime/errors';
-import { Logger } from '../../runtime/logger';
-import { resolveStartConfig } from '../../runtime/config';
-import { RuntimeManager } from '../../runtime/runtimeManager';
+import { createLogger } from "../../runtime/logger";
+import { resolveStartConfig } from "../../runtime/config";
+import { RuntimeManager } from "../../runtime/runtimeManager";
+import { CliError } from "../../runtime/errors";
 
 export async function runStartCommand(options: Record<string, unknown>): Promise<number> {
   const config = resolveStartConfig(options);
-  const logger = new Logger({
-    level: config.logLevel,
-    json: config.json,
-  });
+  const logger = createLogger("postgrest-lite");
   const runtimeManager = new RuntimeManager(config, logger);
 
   try {
     await runtimeManager.startCore();
     await runtimeManager.start();
 
-    emitReadyMessage(config.json, runtimeManager);
+    emitReadyMessage(runtimeManager);
     return await waitForTermination(runtimeManager, logger);
   } catch (error) {
     await runtimeManager.stop().catch(() => undefined);
     if (error instanceof CliError) {
-      logger.error(error.message);
+      logger(error.message);
       return error.exitCode;
     }
-    logger.error(error instanceof Error ? error.message : String(error));
+    logger(error instanceof Error ? error.message : String(error));
     return 1;
   }
 }
 
-async function waitForTermination(runtimeManager: RuntimeManager, logger: Logger): Promise<number> {
+async function waitForTermination(
+  runtimeManager: RuntimeManager,
+  logger: ReturnType<typeof createLogger>,
+): Promise<number> {
   return new Promise((resolve) => {
     let shuttingDown = false;
 
@@ -37,23 +37,23 @@ async function waitForTermination(runtimeManager: RuntimeManager, logger: Logger
         return;
       }
       shuttingDown = true;
-      logger.info('Received shutdown signal', { signal });
+      logger(`Received shutdown signal (signal: ${signal})`);
       removeHandlers();
       await runtimeManager.stop();
       resolve(0);
     };
 
     const removeHandlers = () => {
-      process.off('SIGINT', onSignal);
-      process.off('SIGTERM', onSignal);
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
     };
 
-    process.on('SIGINT', onSignal);
-    process.on('SIGTERM', onSignal);
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
   });
 }
 
-function emitReadyMessage(json: boolean, runtimeManager: RuntimeManager): void {
+function emitReadyMessage(runtimeManager: RuntimeManager): void {
   const snapshot = runtimeManager.getSnapshot();
   const config = runtimeManager.getConfig();
   const endpoints: Record<string, string> = {
@@ -71,7 +71,7 @@ function emitReadyMessage(json: boolean, runtimeManager: RuntimeManager): void {
   }
 
   const payload = {
-    status: 'ready',
+    status: "ready",
     endpoints,
     postgrest: {
       http: `http://127.0.0.1:${snapshot.postgrestPort}`,
@@ -81,12 +81,7 @@ function emitReadyMessage(json: boolean, runtimeManager: RuntimeManager): void {
     postgresWire: `postgresql://postgres@127.0.0.1:${snapshot.pgPort}/postgres`,
   };
 
-  if (json) {
-    console.log(JSON.stringify(payload));
-    return;
-  }
-
-  console.log('postgrest-lite is ready');
+  console.log("postgrest-lite is ready");
   console.log(`  root: ${endpoints.root}`);
   console.log(`  health: ${endpoints.health}`);
   console.log(`  ready: ${endpoints.ready}`);

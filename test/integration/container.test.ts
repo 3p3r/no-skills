@@ -1,13 +1,13 @@
-import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from "vitest";
 
-import { getFreePort } from '../../src/runtime/network';
+import { getFreePort } from "../../src/runtime/network";
 
-const dockerAvailable = spawnSync('docker', ['version'], { stdio: 'ignore' }).status === 0;
+const dockerAvailable = spawnSync("docker", ["version"], { stdio: "ignore" }).status === 0;
 
-describe.skipIf(!dockerAvailable)('docker workflow', () => {
+describe.skipIf(!dockerAvailable)("docker workflow", () => {
   const containers: string[] = [];
   const images: string[] = [];
 
@@ -15,31 +15,31 @@ describe.skipIf(!dockerAvailable)('docker workflow', () => {
     while (containers.length > 0) {
       const container = containers.pop();
       if (container) {
-        spawnSync('docker', ['rm', '-f', container], { stdio: 'ignore' });
+        spawnSync("docker", ["rm", "-f", container], { stdio: "ignore" });
       }
     }
     while (images.length > 0) {
       const image = images.pop();
       if (image) {
-        spawnSync('docker', ['rmi', '-f', image], { stdio: 'ignore' });
+        spawnSync("docker", ["rmi", "-f", image], { stdio: "ignore" });
       }
     }
   });
 
-  it('builds and serves the local Docker image', async () => {
+  it("builds and serves the local Docker image", async () => {
     const image = `postgrest-lite:test-${randomUUID()}`;
     images.push(image);
 
-    const build = spawnSync('docker', ['build', '-t', image, '.'], {
+    const build = spawnSync("docker", ["build", "-t", image, "."], {
       cwd: process.cwd(),
-      stdio: 'inherit',
+      stdio: "inherit",
     });
     expect(build.status).toBe(0);
 
-    const hostPort = await getFreePort('127.0.0.1');
-    const run = spawnSync('docker', ['run', '-d', '-p', `${hostPort}:8080`, image], {
+    const hostPort = await getFreePort("127.0.0.1");
+    const run = spawnSync("docker", ["run", "-d", "-p", `${hostPort}:8080`, image], {
       cwd: process.cwd(),
-      encoding: 'utf8',
+      encoding: "utf8",
     });
     expect(run.status).toBe(0);
     const containerId = run.stdout.trim();

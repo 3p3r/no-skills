@@ -34,3 +34,4 @@ vitest.config.ts.timestamp-*
 
 # Harness artifacts
 .lcm/
+.sisyphus/

@@ -1,10 +1,9 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import fs from "node:fs";
+import path from "node:path";
+import rc from "rc";
 
-import { CliError } from './errors';
-import { LogLevel } from './logger';
-import { getBundledBootstrapPath, getDefaultBinaryCacheDir } from './paths';
-import { DEFAULT_POSTGREST_VERSION } from './packageInfo';
+import { CliError } from "./errors";
+import { getBundledBootstrapPath } from "./paths";
 
 export interface StartConfig {
   host: string;
@@ -12,24 +11,15 @@ export interface StartConfig {
   pgPort: number;
   postgrestPort: number;
   adminPort: number;
-  postgrestVersion: string;
   postgrestBin?: string;
   schema: string;
   dbAnonRole: string;
   bootstrap: string;
   readyTimeoutMs: number;
-  logLevel: LogLevel;
-  json: boolean;
   httpEnabled: boolean;
   openapiEnabled: boolean;
   openapiPath: string;
   skillsEnabled: boolean;
-}
-
-export interface DownloadConfig {
-  postgrestVersion: string;
-  postgrestBinDir: string;
-  force: boolean;
 }
 
 export interface DoctorConfig {
@@ -38,7 +28,6 @@ export interface DoctorConfig {
   pgPort: number;
   postgrestPort: number;
   adminPort: number;
-  postgrestVersion: string;
   postgrestBin?: string;
   bootstrap: string;
   json: boolean;
@@ -46,97 +35,138 @@ export interface DoctorConfig {
 
 type PrimitiveOptions = Record<string, unknown>;
 
-export function resolveStartConfig(options: PrimitiveOptions): StartConfig {
-  const httpEnabled = readBoolean(options.http, process.env.POSTGREST_LITE_HTTP, true);
-  const openapiEnabled = readBoolean(options.openapi, process.env.POSTGREST_LITE_OPENAPI, true);
-  let skillsEnabled = readBoolean(options.skills, process.env.POSTGREST_LITE_SKILLS, true);
+const DEFAULT_START_CONFIG = {
+  host: "127.0.0.1",
+  port: 8080,
+  pgPort: 5432,
+  postgrestPort: 3000,
+  adminPort: 3001,
+  schema: "api",
+  dbAnonRole: "anon",
+  bootstrap: "sql/bootstrap.sql",
+  readyTimeoutMs: 30000,
+  httpEnabled: true,
+  openapiEnabled: true,
+  openapiPath: "/openapi.json",
+  skillsEnabled: true,
+};
 
-  if (!openapiEnabled && skillsEnabled) {
-    if (
-      options.skills === true ||
-      options.skills === 'true' ||
-      (process.env.POSTGREST_LITE_SKILLS !== undefined &&
-        ['1', 'true', 'yes', 'on'].includes(process.env.POSTGREST_LITE_SKILLS.toLowerCase()))
-    ) {
-      // eslint-disable-next-line no-console
-      console.warn('WARN: Skills require OpenAPI. Disabling skills.');
+const DEFAULT_DOCTOR_CONFIG = {
+  host: "127.0.0.1",
+  port: 8080,
+  pgPort: 5432,
+  postgrestPort: 3000,
+  adminPort: 3001,
+  bootstrap: "sql/bootstrap.sql",
+  json: false,
+};
+
+export function resolveStartConfig(options: PrimitiveOptions): StartConfig {
+  const config = rc("postgrest-lite", DEFAULT_START_CONFIG);
+  const merged = { ...config, ...options };
+
+  const validated: StartConfig = {
+    host: readString(merged.host, "host"),
+    port: readPort(merged.port, "port"),
+    pgPort: readPort(merged.pgPort, "pg-port"),
+    postgrestPort: readPort(merged.postgrestPort, "postgrest-port"),
+    adminPort: readPort(merged.adminPort, "admin-port"),
+    postgrestBin: readOptionalAbsolutePath(merged.postgrestBin, "postgrest-bin"),
+    schema: readString(merged.schema, "schema"),
+    dbAnonRole: readString(merged.dbAnonRole, "db-anon-role"),
+    bootstrap: resolveBootstrapPath(merged.bootstrap),
+    readyTimeoutMs: readNonNegativeInteger(merged.readyTimeoutMs, "ready-timeout-ms"),
+    httpEnabled: readBoolean(merged.httpEnabled, "http-enabled"),
+    openapiEnabled: readBoolean(merged.openapiEnabled, "openapi-enabled"),
+    openapiPath: readString(merged.openapiPath, "openapi-path"),
+    skillsEnabled: readBoolean(merged.skillsEnabled, "skills-enabled"),
+  };
+
+  if (!validated.openapiEnabled && validated.skillsEnabled) {
+    const skillsWasExplicitlyEnabled =
+      options.skills !== undefined || config.skills !== undefined || process.env.POSTGREST_LITE_SKILLS !== undefined;
+
+    if (skillsWasExplicitlyEnabled) {
+      console.warn("WARN: Skills require OpenAPI. Disabling skills.");
     }
-    skillsEnabled = false;
+    validated.skillsEnabled = false;
   }
 
-  const config: StartConfig = {
-    host: readString(options.host, process.env.POSTGREST_LITE_HOST, '127.0.0.1'),
-    port: readPort(options.port, process.env.POSTGREST_LITE_PORT, 8080, 'port'),
-    pgPort: readPort(options.pgPort, process.env.POSTGREST_LITE_PG_PORT, 5432, 'pg-port'),
-    postgrestPort: readPort(options.postgrestPort, process.env.POSTGREST_LITE_POSTGREST_PORT, 3000, 'postgrest-port'),
-    adminPort: readPort(options.adminPort, process.env.POSTGREST_LITE_ADMIN_PORT, 3001, 'admin-port'),
-    postgrestVersion: readString(options.postgrestVersion, process.env.POSTGREST_LITE_POSTGREST_VERSION, DEFAULT_POSTGREST_VERSION),
-    postgrestBin: readOptionalAbsolutePath(options.postgrestBin, process.env.POSTGREST_LITE_POSTGREST_BIN, 'postgrest-bin'),
-    schema: readString(options.schema, process.env.POSTGREST_LITE_SCHEMA, 'api'),
-    dbAnonRole: readString(options.dbAnonRole, process.env.POSTGREST_LITE_DB_ANON_ROLE, 'anon'),
-    bootstrap: resolveBootstrapPath(options.bootstrap, process.env.POSTGREST_LITE_BOOTSTRAP),
-    readyTimeoutMs: readNonNegativeInteger(options.readyTimeoutMs, process.env.POSTGREST_LITE_READY_TIMEOUT_MS, 30000, 'ready-timeout-ms'),
-    logLevel: readLogLevel(options.logLevel, process.env.POSTGREST_LITE_LOG_LEVEL, 'info'),
-    json: readBoolean(options.json, process.env.POSTGREST_LITE_JSON, false),
-    httpEnabled,
-    openapiEnabled,
-    openapiPath: readString(options.openapiPath, process.env.POSTGREST_LITE_OPENAPI_PATH, '/openapi.json'),
-    skillsEnabled,
-  };
+  validatePortUniqueness([validated.port, validated.pgPort, validated.postgrestPort, validated.adminPort]);
 
-  validatePortUniqueness([config.port, config.pgPort, config.postgrestPort, config.adminPort]);
-  return config;
-}
-
-export function resolveDownloadConfig(options: PrimitiveOptions): DownloadConfig {
-  return {
-    postgrestVersion: readString(options.postgrestVersion, process.env.POSTGREST_LITE_POSTGREST_VERSION, DEFAULT_POSTGREST_VERSION),
-    postgrestBinDir: path.resolve(readString(options.postgrestBinDir, undefined, getDefaultBinaryCacheDir())),
-    force: readBoolean(options.force, undefined, false),
-  };
+  return validated;
 }
 
 export function resolveDoctorConfig(options: PrimitiveOptions): DoctorConfig {
-  const config: DoctorConfig = {
-    host: readString(options.host, process.env.POSTGREST_LITE_HOST, '127.0.0.1'),
-    port: readPort(options.port, process.env.POSTGREST_LITE_PORT, 8080, 'port'),
-    pgPort: readPort(options.pgPort, process.env.POSTGREST_LITE_PG_PORT, 5432, 'pg-port'),
-    postgrestPort: readPort(options.postgrestPort, process.env.POSTGREST_LITE_POSTGREST_PORT, 3000, 'postgrest-port'),
-    adminPort: readPort(options.adminPort, process.env.POSTGREST_LITE_ADMIN_PORT, 3001, 'admin-port'),
-    postgrestVersion: readString(options.postgrestVersion, process.env.POSTGREST_LITE_POSTGREST_VERSION, DEFAULT_POSTGREST_VERSION),
-    postgrestBin: readOptionalAbsolutePath(options.postgrestBin, process.env.POSTGREST_LITE_POSTGREST_BIN, 'postgrest-bin'),
-    bootstrap: resolveBootstrapPath(options.bootstrap, process.env.POSTGREST_LITE_BOOTSTRAP),
-    json: readBoolean(options.json, process.env.POSTGREST_LITE_JSON, false),
+  const config = rc("postgrest-lite", DEFAULT_DOCTOR_CONFIG);
+  const merged = { ...config, ...options };
+
+  const validated: DoctorConfig = {
+    host: readString(merged.host, "host"),
+    port: readPort(merged.port, "port"),
+    pgPort: readPort(merged.pgPort, "pg-port"),
+    postgrestPort: readPort(merged.postgrestPort, "postgrest-port"),
+    adminPort: readPort(merged.adminPort, "admin-port"),
+    postgrestBin: readOptionalAbsolutePath(merged.postgrestBin, "postgrest-bin"),
+    bootstrap: resolveBootstrapPath(merged.bootstrap),
+    json: readBoolean(merged.json, "json"),
   };
 
-  validatePortUniqueness([config.port, config.pgPort, config.postgrestPort, config.adminPort]);
-  return config;
+  validatePortUniqueness([validated.port, validated.pgPort, validated.postgrestPort, validated.adminPort]);
+
+  return validated;
 }
 
-function readString(flagValue: unknown, envValue: string | undefined, defaultValue: string): string {
-  const raw = firstDefined(flagValue, envValue, defaultValue);
-  const value = String(raw).trim();
-  if (!value) {
-    throw new CliError('String configuration values cannot be empty.', 2);
+// --- Helpers ---
+
+function readString(value: unknown, label: string): string {
+  const s = String(value ?? "").trim();
+  if (!s) {
+    throw new CliError(`--${label} cannot be empty.`, 2);
   }
-  return value;
+  return s;
 }
 
-function readOptionalAbsolutePath(flagValue: unknown, envValue: string | undefined, label: string): string | undefined {
-  const raw = firstDefined(flagValue, envValue);
-  if (raw === undefined || raw === null || raw === '') {
+function readOptionalAbsolutePath(value: unknown, label: string): string | undefined {
+  const s = String(value ?? "").trim();
+  if (!s) {
     return undefined;
   }
-
-  const value = String(raw).trim();
-  if (!path.isAbsolute(value)) {
+  if (!path.isAbsolute(s)) {
     throw new CliError(`--${label} must be an absolute path.`, 2);
   }
-  return value;
+  return s;
 }
 
-function resolveBootstrapPath(flagValue: unknown, envValue: string | undefined): string {
-  const raw = firstDefined(flagValue, envValue, getBundledBootstrapPath());
+function readPort(value: unknown, label: string): number {
+  return readInteger(value, label, (v) => v >= 1 && v <= 65535, "must be between 1 and 65535");
+}
+
+function readNonNegativeInteger(value: unknown, label: string): number {
+  return readInteger(value, label, (v) => v >= 0, "must be zero or greater");
+}
+
+function readInteger(value: unknown, label: string, predicate: (v: number) => boolean, message: string): number {
+  const num = Number(value);
+  if (!Number.isInteger(num) || !predicate(num)) {
+    throw new CliError(`--${label} ${message}.`, 2);
+  }
+  return num;
+}
+
+function readBoolean(value: unknown, label: string): boolean {
+  if (typeof value === "boolean") return value;
+  const s = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (["1", "true", "yes", "on"].includes(s)) return true;
+  if (["0", "false", "no", "off"].includes(s)) return false;
+  if (s === "") return false;
+  throw new CliError(`--${label} must be a boolean value.`, 2);
+}
+
+function resolveBootstrapPath(value: unknown): string {
+  const raw = value ?? getBundledBootstrapPath();
   const resolved = path.resolve(String(raw));
   if (!fs.existsSync(resolved)) {
     throw new CliError(`Bootstrap SQL file does not exist: ${resolved}`, 2);
@@ -144,67 +174,11 @@ function resolveBootstrapPath(flagValue: unknown, envValue: string | undefined):
   return resolved;
 }
 
-function readPort(flagValue: unknown, envValue: string | undefined, defaultValue: number, label: string): number {
-  return readInteger(flagValue, envValue, defaultValue, label, (value) => value >= 1 && value <= 65535, 'must be between 1 and 65535');
-}
-
-function readNonNegativeInteger(flagValue: unknown, envValue: string | undefined, defaultValue: number, label: string): number {
-  return readInteger(flagValue, envValue, defaultValue, label, (value) => value >= 0, 'must be zero or greater');
-}
-
-function readInteger(
-  flagValue: unknown,
-  envValue: string | undefined,
-  defaultValue: number,
-  label: string,
-  predicate: (value: number) => boolean,
-  message: string,
-): number {
-  const raw = firstDefined(flagValue, envValue, defaultValue);
-  const value = Number(raw);
-  if (!Number.isInteger(value) || !predicate(value)) {
-    throw new CliError(`--${label} ${message}.`, 2);
-  }
-  return value;
-}
-
-function readLogLevel(flagValue: unknown, envValue: string | undefined, defaultValue: LogLevel): LogLevel {
-  const value = readString(flagValue, envValue, defaultValue);
-  if (value === 'debug' || value === 'info' || value === 'warn' || value === 'error') {
-    return value;
-  }
-  throw new CliError('--log-level must be one of debug, info, warn, or error.', 2);
-}
-
-function readBoolean(flagValue: unknown, envValue: string | undefined, defaultValue: boolean): boolean {
-  const raw = firstDefined(flagValue, envValue, defaultValue);
-  if (typeof raw === 'boolean') {
-    return raw;
-  }
-  const value = String(raw).trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(value)) {
-    return true;
-  }
-  if (['0', 'false', 'no', 'off'].includes(value)) {
-    return false;
-  }
-  throw new CliError('Boolean configuration values must be true/false.', 2);
-}
-
-function firstDefined(...values: Array<unknown>): unknown {
-  for (const value of values) {
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
 function validatePortUniqueness(ports: number[]): void {
   const seen = new Set<number>();
   for (const port of ports) {
     if (seen.has(port)) {
-      throw new CliError('Configured ports must all be distinct.', 2);
+      throw new CliError("Configured ports must all be distinct.", 2);
     }
     seen.add(port);
   }

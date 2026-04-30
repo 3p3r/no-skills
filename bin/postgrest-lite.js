@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-const path = require('node:path');
+const path = require("node:path");
 
 async function run() {
-  const entrypoint = path.resolve(__dirname, '../dist/src/cli/index.js');
+  const entrypoint = path.resolve(__dirname, "../dist/src/cli/index.js");
   const cli = require(entrypoint);
   const exitCode = await cli.main(process.argv);
   process.exitCode = exitCode;

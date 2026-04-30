@@ -1,9 +1,9 @@
-import fs from 'node:fs';
+import fs from "node:fs";
 
-import { PGlite } from '@electric-sql/pglite';
-import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
+import { PGlite } from "@electric-sql/pglite";
+import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 
-import { Logger } from './logger';
+import type { createLogger } from "./logger";
 
 export interface PGliteRuntime {
   db: PGlite;
@@ -19,18 +19,18 @@ export interface PGliteRuntime {
 export async function startPGliteRuntime(options: {
   pgPort: number;
   bootstrapPath: string;
-  logger: Logger;
+  logger: ReturnType<typeof createLogger>;
 }): Promise<PGliteRuntime> {
-  const logger = options.logger.child('pglite');
-  const sql = await fs.promises.readFile(options.bootstrapPath, 'utf8');
+  const logger = options.logger.extend("pglite");
+  const sql = await fs.promises.readFile(options.bootstrapPath, "utf8");
   const db = await PGlite.create();
 
-  logger.info('Running bootstrap SQL', { bootstrapPath: options.bootstrapPath });
+  logger(`Running bootstrap SQL (bootstrapPath: ${options.bootstrapPath})`);
   await db.exec(sql);
 
   const socketServer = new PGLiteSocketServer({
     db,
-    host: '127.0.0.1',
+    host: "127.0.0.1",
     port: options.pgPort,
     maxConnections: 10,
   });
@@ -41,10 +41,10 @@ export async function startPGliteRuntime(options: {
   return {
     db,
     socketServer,
-    host: '127.0.0.1',
+    host: "127.0.0.1",
     port: options.pgPort,
     bootstrapPath: options.bootstrapPath,
-    pgliteVersion: (db as any).version ?? 'unknown',
+    pgliteVersion: (db as any).version ?? "unknown",
     isRunning: () => running && db.ready && !db.closed,
     stop: async () => {
       if (!running) {

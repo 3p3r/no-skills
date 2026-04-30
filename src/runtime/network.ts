@@ -1,4 +1,4 @@
-import net from 'node:net';
+import net from "node:net";
 
 export function waitFor(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -10,11 +10,11 @@ export async function isPortFree(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
 
-    server.once('error', () => {
+    server.once("error", () => {
       resolve(false);
     });
 
-    server.once('listening', () => {
+    server.once("listening", () => {
       server.close(() => resolve(true));
     });
 
@@ -30,31 +30,31 @@ export async function isTcpEndpointReachable(host: string, port: number, timeout
       resolve(false);
     }, timeoutMs);
 
-    socket.once('connect', () => {
+    socket.once("connect", () => {
       clearTimeout(timer);
       socket.end();
       resolve(true);
     });
 
-    socket.once('error', () => {
+    socket.once("error", () => {
       clearTimeout(timer);
       resolve(false);
     });
   });
 }
 
-export async function getFreePort(host = '127.0.0.1'): Promise<number> {
+export async function getFreePort(host = "127.0.0.1"): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
-
-    server.once('error', reject);
     server.listen(0, host, () => {
       const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close(() => reject(new Error('Unable to determine free port')));
-        return;
+      if (address && typeof address === "object") {
+        const port = address.port;
+        server.close(() => resolve(port));
+      } else {
+        server.close(() => reject(new Error("Unable to determine free port")));
       }
-      server.close(() => resolve(address.port));
     });
+    server.once("error", reject);
   });
 }

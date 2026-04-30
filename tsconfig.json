@@ -11,14 +11,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "types": [
-      "node",
-      "vitest/globals"
-    ]
+    "types": ["node", "vitest/globals"]
   },
-  "include": [
-    "src/**/*.ts",
-    "infra/**/*.ts",
-    "test/**/*.ts"
-  ]
+  "include": ["src/**/*.ts", "infra/**/*.ts", "test/**/*.ts"]
 }

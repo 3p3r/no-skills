@@ -1,23 +1,23 @@
-import type { Hono } from 'hono';
-import { generateSpecs } from 'hono-openapi';
-import { merge, isErrorResult } from 'openapi-merge';
-import type { OpenAPIV3 } from 'openapi-types';
-import { serve } from '@hono/node-server';
+import type { Hono } from "hono";
+import { generateSpecs } from "hono-openapi";
+import { merge, isErrorResult } from "openapi-merge";
+import type { OpenAPIV3 } from "openapi-types";
+import { serve } from "@hono/node-server";
 
-import { StartConfig } from './config';
-import { ensurePostgrestBinary } from './postgrestBinary';
-import { Logger } from './logger';
-import { isTcpEndpointReachable } from './network';
-import { CLI_VERSION } from './packageInfo';
-import { PGliteRuntime, startPGliteRuntime } from './pglite';
-import { PostgrestRuntime, startPostgrestRuntime } from './postgrest';
-import { createApp } from '../server/app';
-import { serveSkillsHandler } from '../server/skills';
-import packageJson from '../../package.json';
+import type { StartConfig } from "./config";
+import { CliError } from "./errors";
+import type { createLogger } from "./logger";
+import { isTcpEndpointReachable } from "./network";
+import { type PGliteRuntime, startPGliteRuntime } from "./pglite";
+import { type PostgrestRuntime, startPostgrestRuntime } from "./postgrest";
+import { createApp } from "../server/app";
+import { serveSkillsHandler } from "../server/skills";
+import { CLI_VERSION } from "./packageInfo";
+import packageJson from "../../package.json";
 
 export class RuntimeManager {
   private readonly config: StartConfig;
-  private readonly logger: Logger;
+  private readonly logger: ReturnType<typeof createLogger>;
   private pgliteRuntime?: PGliteRuntime;
   private postgrestRuntime?: PostgrestRuntime;
   private httpServer?: ManagedHttpServer;
@@ -25,32 +25,29 @@ export class RuntimeManager {
   private app?: Hono;
   private mergedSpec?: OpenAPIV3.Document;
 
-  constructor(config: StartConfig, logger: Logger) {
+  constructor(config: StartConfig, logger: ReturnType<typeof createLogger>) {
     this.config = config;
-    this.logger = logger.child('runtime');
+    this.logger = logger.extend("runtime");
   }
 
   async startCore(): Promise<void> {
-    const binaryPath = await ensurePostgrestBinary({
-      version: this.config.postgrestVersion,
-      overridePath: this.config.postgrestBin,
-      logger: this.logger,
-    });
-
     this.pgliteRuntime = await startPGliteRuntime({
       pgPort: this.config.pgPort,
       bootstrapPath: this.config.bootstrap,
       logger: this.logger,
     });
 
+    if (!this.config.postgrestBin) {
+      throw new CliError("PostgREST binary path is required. Run `postgrest-lite download` first.", 1);
+    }
+
     this.postgrestRuntime = await startPostgrestRuntime({
-      binaryPath,
+      binaryPath: this.config.postgrestBin,
       pgPort: this.config.pgPort,
       schema: this.config.schema,
       dbAnonRole: this.config.dbAnonRole,
       postgrestPort: this.config.postgrestPort,
       adminPort: this.config.adminPort,
-      logLevel: this.config.logLevel,
       readyTimeoutMs: this.config.readyTimeoutMs,
       logger: this.logger,
     });
@@ -70,7 +67,7 @@ export class RuntimeManager {
     }
 
     if (this.config.skillsEnabled) {
-      this.app.get('/skills/*', serveSkillsHandler);
+      this.app.get("/skills/*", serveSkillsHandler);
     }
 
     const server = serve({
@@ -81,8 +78,8 @@ export class RuntimeManager {
     this.httpServer = server as ManagedHttpServer;
 
     await new Promise<void>((resolve, reject) => {
-      server.once('listening', () => resolve());
-      server.once('error', reject);
+      server.once("listening", () => resolve());
+      server.once("error", reject);
     });
   }
 
@@ -93,15 +90,15 @@ export class RuntimeManager {
   private async fetchPostgrestOpenApi(): Promise<OpenAPIV3.Document | undefined> {
     try {
       const res = await fetch(`http://127.0.0.1:${this.config.postgrestPort}/`, {
-        headers: { Accept: 'application/openapi+json' },
+        headers: { Accept: "application/openapi+json" },
       });
       if (!res.ok) {
-        this.logger.warn(`PostgREST OpenAPI fetch failed: ${res.status} ${res.statusText}`);
+        this.logger(`PostgREST OpenAPI fetch failed: ${res.status} ${res.statusText}`);
         return undefined;
       }
-      return await res.json() as OpenAPIV3.Document;
+      return (await res.json()) as OpenAPIV3.Document;
     } catch (e) {
-      this.logger.warn(`PostgREST OpenAPI fetch error: ${e}`);
+      this.logger(`PostgREST OpenAPI fetch error: ${e}`);
       return undefined;
     }
   }
@@ -112,14 +109,14 @@ export class RuntimeManager {
     const honoSpec = await generateSpecs(app, {
       documentation: {
         info: {
-          title: 'postgrest-lite',
+          title: "postgrest-lite",
           version: packageJson.version,
-          description: 'API documentation for postgrest-lite',
+          description: "API documentation for postgrest-lite",
         },
         servers: [
           {
             url: `http://${this.config.host}:${this.config.port}`,
-            description: 'Hono server',
+            description: "Hono server",
           },
         ],
       },
@@ -130,38 +127,38 @@ export class RuntimeManager {
     if (postgrestSpec) {
       const mergeResult = merge([
         { oas: honoSpec as any },
-        { oas: postgrestSpec as any, pathModification: { prepend: '/api' } },
+        { oas: postgrestSpec as any, pathModification: { prepend: "/api" } },
       ]);
 
       if (isErrorResult(mergeResult)) {
-        this.logger.warn(`OpenAPI merge failed: ${mergeResult.message}. Serving Hono spec only.`);
-        this.mergedSpec = { ...honoSpec, openapi: '3.0.0' } as OpenAPIV3.Document;
+        this.logger(`OpenAPI merge failed: ${mergeResult.message}. Serving Hono spec only.`);
+        this.mergedSpec = { ...honoSpec, openapi: "3.0.0" } as OpenAPIV3.Document;
       } else {
         this.mergedSpec = mergeResult.output as OpenAPIV3.Document;
-        this.mergedSpec.openapi = '3.0.0';
+        this.mergedSpec.openapi = "3.0.0";
       }
     } else {
-      this.logger.warn('PostgREST spec unavailable. Serving Hono spec only.');
-      this.mergedSpec = { ...honoSpec, openapi: '3.0.0' } as OpenAPIV3.Document;
+      this.logger("PostgREST spec unavailable. Serving Hono spec only.");
+      this.mergedSpec = { ...honoSpec, openapi: "3.0.0" } as OpenAPIV3.Document;
     }
   }
 
   private async generateSkills(): Promise<void> {
     if (!this.config.skillsEnabled || !this.mergedSpec) return;
 
-    const { convertOpenAPIToSkill } = await import('openapi-to-skills');
-    const { configure, InMemory } = await import('@zenfs/core');
-    const { writeFile, mkdir, readFile } = await import('@zenfs/core/promises');
+    const { convertOpenAPIToSkill } = await import("openapi-to-skills");
+    const { configure, InMemory } = await import("@zenfs/core");
+    const { writeFile, mkdir, readFile } = await import("@zenfs/core/promises");
 
     await configure({
       mounts: {
-        '/skillfiles': { backend: InMemory, label: 'skills-storage' },
+        "/skillfiles": { backend: InMemory, label: "skills-storage" },
       },
     });
 
     const zenFSWriter = {
       async writeFile(path: string, content: string): Promise<void> {
-        await writeFile(path, content, 'utf-8');
+        await writeFile(path, content, "utf-8");
       },
       async mkdir(path: string): Promise<void> {
         await mkdir(path, { recursive: true });
@@ -170,13 +167,13 @@ export class RuntimeManager {
 
     try {
       await convertOpenAPIToSkill(this.mergedSpec, {
-        outputDir: '/skillfiles',
-        parser: { skillName: 'api' },
+        outputDir: "/skillfiles",
+        parser: { skillName: "api" },
         writer: zenFSWriter,
       });
-      this.logger.info('Skills generated in memory.');
+      this.logger("Skills generated in memory.");
     } catch (e) {
-      this.logger.error(`Skills generation failed: ${e}`);
+      this.logger(`Skills generation failed: ${e}`);
     }
   }
 
@@ -204,7 +201,6 @@ export class RuntimeManager {
 
   getSnapshot(): {
     cliVersion: string;
-    postgrestVersion: string;
     pgliteVersion: string;
     host: string;
     port: number;
@@ -221,8 +217,7 @@ export class RuntimeManager {
   } {
     return {
       cliVersion: CLI_VERSION,
-      postgrestVersion: this.config.postgrestVersion,
-      pgliteVersion: this.pgliteRuntime?.pgliteVersion ?? 'unknown',
+      pgliteVersion: this.pgliteRuntime?.pgliteVersion ?? "unknown",
       host: this.config.host,
       port: this.config.port,
       pgPort: this.config.pgPort,
@@ -244,7 +239,7 @@ export class RuntimeManager {
     postgrestReady: boolean;
     httpServerListening: boolean;
   }> {
-    const pgliteReachable = await isTcpEndpointReachable('127.0.0.1', this.config.pgPort, 500);
+    const pgliteReachable = await isTcpEndpointReachable("127.0.0.1", this.config.pgPort, 500);
     const postgrestReady = await this.checkPostgrestReady();
 
     return {
@@ -264,7 +259,7 @@ export class RuntimeManager {
       return false;
     }
     try {
-      const response = await fetch(`${this.postgrestRuntime.adminUrl}/ready`, { redirect: 'manual' });
+      const response = await fetch(`${this.postgrestRuntime.adminUrl}/ready`, { redirect: "manual" });
       return response.ok;
     } catch {
       return false;
