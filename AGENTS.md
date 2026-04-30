@@ -84,12 +84,19 @@ CLI utility that runs an ephemeral stack in one process tree: in-memory PGlite d
 
 ## Code Style & Conventions
 
-- **No linter or formatter** is configured. TypeScript strict mode is the only guard.
+- **Biome** is used for both formatting and linting (`@biomejs/biome` in devDependencies).
+- **Run cosmetics**: `npm run cosmetics` runs `format` then `lint` — use this before committing.
 - Use `node:` prefix for built-in modules.
 - Logger is a custom class (`src/runtime/logger.ts`) supporting text and JSON output, scoped children, and log levels.
 - Errors: prefer `CliError` (extends `Error` with `exitCode`) for CLI-facing errors.
 - Config resolution lives in `src/runtime/config.ts` and reads CLI flags → env vars → defaults.
 - Env var prefix: `POSTGREST_LITE_*`.
+
+## Agent Harness Notes
+
+- The harness running agents on this project has access to **local AI models**.
+- These models can take a **very long time** to finish tasks (potentially hours).
+- **Do not poll or cancel** sub agents. Let them complete their work uninterrupted.
 
 ## Important Constraints
 

@@ -21,7 +21,10 @@ describe.sequential("cli contract", () => {
 
   describe.skipIf(!findPostgrestBinary())("binary-dependent tests", () => {
     it("prints versions, validates with doctor, and shuts down cleanly on SIGINT", async () => {
-      const binaryPath = findPostgrestBinary()!;
+      const binaryPath = findPostgrestBinary();
+      if (!binaryPath) {
+        throw new Error("PostgREST binary not found");
+      }
 
       const versionResult = spawnSync("node", ["bin/postgrest-lite.js", "version"], {
         cwd: process.cwd(),

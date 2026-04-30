@@ -44,7 +44,7 @@ export async function startPGliteRuntime(options: {
     host: "127.0.0.1",
     port: options.pgPort,
     bootstrapPath: options.bootstrapPath,
-    pgliteVersion: (db as any).version ?? "unknown",
+    pgliteVersion: (db as unknown as { version?: string }).version ?? "unknown",
     isRunning: () => running && db.ready && !db.closed,
     stop: async () => {
       if (!running) {

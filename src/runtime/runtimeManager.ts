@@ -125,9 +125,10 @@ export class RuntimeManager {
     const postgrestSpec = await this.fetchPostgrestOpenApi();
 
     if (postgrestSpec) {
+      type MergeOas = Parameters<typeof merge>[0][number]["oas"];
       const mergeResult = merge([
-        { oas: honoSpec as any },
-        { oas: postgrestSpec as any, pathModification: { prepend: "/api" } },
+        { oas: honoSpec as unknown as MergeOas },
+        { oas: postgrestSpec as unknown as MergeOas, pathModification: { prepend: "/api" } },
       ]);
 
       if (isErrorResult(mergeResult)) {
@@ -148,7 +149,7 @@ export class RuntimeManager {
 
     const { convertOpenAPIToSkill } = await import("openapi-to-skills");
     const { configure, InMemory } = await import("@zenfs/core");
-    const { writeFile, mkdir, readFile } = await import("@zenfs/core/promises");
+    const { writeFile, mkdir } = await import("@zenfs/core/promises");
 
     await configure({
       mounts: {
