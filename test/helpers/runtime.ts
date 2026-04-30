@@ -33,18 +33,9 @@ export async function buildTestConfig(overrides: Partial<StartConfig> = {}): Pro
   return resolveStartConfig({
     host,
     port: overrides.port ?? (await getFreePort(host)),
-    pgPort: overrides.pgPort ?? (await getFreePort("127.0.0.1")),
-    postgrestPort: overrides.postgrestPort ?? (await getFreePort("127.0.0.1")),
-    adminPort: overrides.adminPort ?? (await getFreePort("127.0.0.1")),
     postgrestBin: binary,
-    schema: overrides.schema ?? "api",
-    dbAnonRole: overrides.dbAnonRole ?? "anon",
     bootstrap: overrides.bootstrap,
-    readyTimeoutMs: overrides.readyTimeoutMs,
     httpEnabled: overrides.httpEnabled ?? true,
-    openapiEnabled: overrides.openapiEnabled ?? true,
-    openapiPath: overrides.openapiPath ?? "/",
-    skillsEnabled: overrides.skillsEnabled ?? false,
   });
 }
 

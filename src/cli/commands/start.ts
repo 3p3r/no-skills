@@ -4,7 +4,7 @@ import { RuntimeManager } from "../../runtime/runtimeManager";
 import { CliError } from "../../runtime/errors";
 
 export async function runStartCommand(options: Record<string, unknown>): Promise<number> {
-  const config = resolveStartConfig(options);
+  const config = await resolveStartConfig(options);
   const logger = createLogger("postgrest-lite");
   const runtimeManager = new RuntimeManager(config, logger);
 
@@ -55,7 +55,6 @@ async function waitForTermination(
 
 function emitReadyMessage(runtimeManager: RuntimeManager): void {
   const snapshot = runtimeManager.getSnapshot();
-  const config = runtimeManager.getConfig();
   const endpoints: Record<string, string> = {
     root: `http://${snapshot.host}:${snapshot.port}/`,
     health: `http://${snapshot.host}:${snapshot.port}/health`,
@@ -63,12 +62,8 @@ function emitReadyMessage(runtimeManager: RuntimeManager): void {
     api: `http://${snapshot.host}:${snapshot.port}/api`,
   };
 
-  if (config.openapiEnabled) {
-    endpoints.openapi = `http://${snapshot.host}:${snapshot.port}${config.openapiPath}`;
-  }
-  if (config.skillsEnabled) {
-    endpoints.skills = `http://${snapshot.host}:${snapshot.port}/skills/SKILL.md`;
-  }
+  endpoints.openapi = `http://${snapshot.host}:${snapshot.port}/openapi.json`;
+  endpoints.skills = `http://${snapshot.host}:${snapshot.port}/skills/SKILL.md`;
 
   const payload = {
     status: "ready",
@@ -86,12 +81,8 @@ function emitReadyMessage(runtimeManager: RuntimeManager): void {
   console.log(`  health: ${endpoints.health}`);
   console.log(`  ready: ${endpoints.ready}`);
   console.log(`  api: ${endpoints.api}`);
-  if (config.openapiEnabled) {
-    console.log(`  openapi: ${endpoints.openapi}`);
-  }
-  if (config.skillsEnabled) {
-    console.log(`  skills: ${endpoints.skills}`);
-  }
+  console.log(`  openapi: ${endpoints.openapi}`);
+  console.log(`  skills: ${endpoints.skills}`);
   console.log(`  postgres wire: ${payload.postgresWire}`);
   console.log(`  postgrest binary: ${payload.postgrest.binaryPath}`);
 }

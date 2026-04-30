@@ -5,6 +5,7 @@ import type { OpenAPIV3 } from "openapi-types";
 import { serve } from "@hono/node-server";
 
 import type { StartConfig } from "./config";
+import { OPENAPI_PATH } from "./config";
 import { CliError } from "./errors";
 import type { createLogger } from "./logger";
 import { isTcpEndpointReachable } from "./network";
@@ -44,11 +45,8 @@ export class RuntimeManager {
     this.postgrestRuntime = await startPostgrestRuntime({
       binaryPath: this.config.postgrestBin,
       pgPort: this.config.pgPort,
-      schema: this.config.schema,
-      dbAnonRole: this.config.dbAnonRole,
       postgrestPort: this.config.postgrestPort,
       adminPort: this.config.adminPort,
-      readyTimeoutMs: this.config.readyTimeoutMs,
       logger: this.logger,
     });
   }
@@ -63,12 +61,10 @@ export class RuntimeManager {
     await this.generateSkills();
 
     if (this.mergedSpec) {
-      this.app.get(this.config.openapiPath, (c) => c.json(this.mergedSpec));
+      this.app.get(OPENAPI_PATH, (c) => c.json(this.mergedSpec));
     }
 
-    if (this.config.skillsEnabled) {
-      this.app.get("/skills/*", serveSkillsHandler);
-    }
+    this.app.get("/skills/*", serveSkillsHandler);
 
     const server = serve({
       fetch: this.app.fetch,
@@ -104,8 +100,6 @@ export class RuntimeManager {
   }
 
   private async generateOpenApiSpec(app: Hono): Promise<void> {
-    if (!this.config.openapiEnabled) return;
-
     const honoSpec = await generateSpecs(app, {
       documentation: {
         info: {
@@ -145,7 +139,7 @@ export class RuntimeManager {
   }
 
   private async generateSkills(): Promise<void> {
-    if (!this.config.skillsEnabled || !this.mergedSpec) return;
+    if (!this.mergedSpec) return;
 
     const { convertOpenAPIToSkill } = await import("openapi-to-skills");
     const { configure, InMemory } = await import("@zenfs/core");
@@ -161,8 +155,8 @@ export class RuntimeManager {
       async writeFile(path: string, content: string): Promise<void> {
         await writeFile(path, content, "utf-8");
       },
-      async mkdir(path: string): Promise<void> {
-        await mkdir(path, { recursive: true });
+      async mkdir(dirPath: string): Promise<void> {
+        await mkdir(dirPath, { recursive: true });
       },
     };
 
@@ -208,8 +202,6 @@ export class RuntimeManager {
     pgPort: number;
     postgrestPort: number;
     adminPort: number;
-    schema: string;
-    dbAnonRole: string;
     postgrestBinaryPath?: string;
     postgrestRunning: boolean;
     postgrestReady: boolean;
@@ -224,8 +216,6 @@ export class RuntimeManager {
       pgPort: this.config.pgPort,
       postgrestPort: this.config.postgrestPort,
       adminPort: this.config.adminPort,
-      schema: this.config.schema,
-      dbAnonRole: this.config.dbAnonRole,
       postgrestBinaryPath: this.postgrestRuntime?.binaryPath,
       postgrestRunning: this.postgrestRuntime?.isRunning() ?? false,
       postgrestReady: this.postgrestRuntime?.isReady() ?? false,

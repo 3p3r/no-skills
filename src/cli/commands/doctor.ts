@@ -6,7 +6,7 @@ import { isPortFree } from "../../runtime/network";
 
 export async function runDoctorCommand(options: Record<string, unknown>): Promise<number> {
   try {
-    const config = resolveDoctorConfig(options);
+    const config = await resolveDoctorConfig(options);
 
     // Validate binary path
     const binaryPath = config.postgrestBin;
@@ -22,15 +22,10 @@ export async function runDoctorCommand(options: Record<string, unknown>): Promis
       .then(() => true)
       .catch(() => false);
 
-    const portResults = await Promise.all([
-      isPortFree(config.host, config.port),
-      isPortFree("127.0.0.1", config.pgPort),
-      isPortFree("127.0.0.1", config.postgrestPort),
-      isPortFree("127.0.0.1", config.adminPort),
-    ]);
+    const honoPortFree = await isPortFree(config.host, config.port);
 
     const result = {
-      ok: binaryExecutable && bootstrapReadable && portResults.every(Boolean),
+      ok: binaryExecutable && bootstrapReadable && honoPortFree,
       binary: {
         ok: binaryExecutable,
         path: binaryPath,
@@ -41,24 +36,9 @@ export async function runDoctorCommand(options: Record<string, unknown>): Promis
       },
       ports: {
         hono: {
-          ok: portResults[0],
+          ok: honoPortFree,
           host: config.host,
           port: config.port,
-        },
-        postgresWire: {
-          ok: portResults[1],
-          host: "127.0.0.1",
-          port: config.pgPort,
-        },
-        postgrest: {
-          ok: portResults[2],
-          host: "127.0.0.1",
-          port: config.postgrestPort,
-        },
-        admin: {
-          ok: portResults[3],
-          host: "127.0.0.1",
-          port: config.adminPort,
         },
       },
     };
@@ -71,13 +51,6 @@ export async function runDoctorCommand(options: Record<string, unknown>): Promis
       console.log(
         `hono port: ${result.ports.hono.ok ? "free" : "busy"} ${result.ports.hono.host}:${result.ports.hono.port}`,
       );
-      console.log(
-        `postgres wire port: ${result.ports.postgresWire.ok ? "free" : "busy"} 127.0.0.1:${result.ports.postgresWire.port}`,
-      );
-      console.log(
-        `postgrest port: ${result.ports.postgrest.ok ? "free" : "busy"} 127.0.0.1:${result.ports.postgrest.port}`,
-      );
-      console.log(`admin port: ${result.ports.admin.ok ? "free" : "busy"} 127.0.0.1:${result.ports.admin.port}`);
     }
 
     return result.ok ? 0 : 1;

@@ -18,17 +18,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     .description("Start the foreground Hono, PGlite, and PostgREST runtime.")
     .option("--host <host>")
     .option("--port <port>")
-    .option("--pg-port <port>")
-    .option("--postgrest-port <port>")
-    .option("--admin-port <port>")
     .option("--postgrest-bin <path>")
-    .option("--schema <schema>")
-    .option("--db-anon-role <role>")
     .option("--bootstrap <path>")
-    .option("--ready-timeout-ms <ms>")
-    .option("--openapi [enabled]")
-    .option("--openapi-path <path>")
-    .option("--skills [enabled]")
     .action(async (options) => {
       process.exitCode = await runStartCommand(options);
     });
@@ -38,9 +29,6 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     .description("Validate binary resolution, bootstrap SQL, and port availability.")
     .option("--host <host>")
     .option("--port <port>")
-    .option("--pg-port <port>")
-    .option("--postgrest-port <port>")
-    .option("--admin-port <port>")
     .option("--postgrest-bin <path>")
     .option("--bootstrap <path>")
     .option("--json")

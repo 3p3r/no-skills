@@ -4,6 +4,12 @@ import rc from "rc";
 
 import { CliError } from "./errors";
 import { getBundledBootstrapPath } from "./paths";
+import { allocatePorts } from "./network.js";
+
+export const SCHEMA = "api";
+export const ANON_ROLE = "anon";
+export const READY_TIMEOUT_MS = 30000;
+export const OPENAPI_PATH = "/openapi.json";
 
 export interface StartConfig {
   host: string;
@@ -12,14 +18,8 @@ export interface StartConfig {
   postgrestPort: number;
   adminPort: number;
   postgrestBin?: string;
-  schema: string;
-  dbAnonRole: string;
   bootstrap: string;
-  readyTimeoutMs: number;
   httpEnabled: boolean;
-  openapiEnabled: boolean;
-  openapiPath: string;
-  skillsEnabled: boolean;
 }
 
 export interface DoctorConfig {
@@ -38,75 +38,55 @@ type PrimitiveOptions = Record<string, unknown>;
 const DEFAULT_START_CONFIG = {
   host: "127.0.0.1",
   port: 8080,
-  pgPort: 5432,
-  postgrestPort: 3000,
-  adminPort: 3001,
-  schema: "api",
-  dbAnonRole: "anon",
   bootstrap: "sql/bootstrap.sql",
-  readyTimeoutMs: 30000,
   httpEnabled: true,
-  openapiEnabled: true,
-  openapiPath: "/openapi.json",
-  skillsEnabled: true,
 };
 
 const DEFAULT_DOCTOR_CONFIG = {
   host: "127.0.0.1",
   port: 8080,
-  pgPort: 5432,
-  postgrestPort: 3000,
-  adminPort: 3001,
   bootstrap: "sql/bootstrap.sql",
   json: false,
 };
 
-export function resolveStartConfig(options: PrimitiveOptions): StartConfig {
+export async function resolveStartConfig(options: PrimitiveOptions): Promise<StartConfig> {
   const config = rc("postgrest-lite", DEFAULT_START_CONFIG);
   const merged = { ...config, ...options };
 
+  const host = readString(merged.host, "host");
+  const port = readPort(merged.port, "port");
+  const [pgPort, postgrestPort, adminPort] = await allocatePorts(host, 3);
+
   const validated: StartConfig = {
-    host: readString(merged.host, "host"),
-    port: readPort(merged.port, "port"),
-    pgPort: readPort(merged.pgPort, "pg-port"),
-    postgrestPort: readPort(merged.postgrestPort, "postgrest-port"),
-    adminPort: readPort(merged.adminPort, "admin-port"),
+    host,
+    port,
+    pgPort,
+    postgrestPort,
+    adminPort,
     postgrestBin: readOptionalAbsolutePath(merged.postgrestBin, "postgrest-bin"),
-    schema: readString(merged.schema, "schema"),
-    dbAnonRole: readString(merged.dbAnonRole, "db-anon-role"),
     bootstrap: resolveBootstrapPath(merged.bootstrap),
-    readyTimeoutMs: readNonNegativeInteger(merged.readyTimeoutMs, "ready-timeout-ms"),
     httpEnabled: readBoolean(merged.httpEnabled, "http-enabled"),
-    openapiEnabled: readBoolean(merged.openapiEnabled, "openapi-enabled"),
-    openapiPath: readString(merged.openapiPath, "openapi-path"),
-    skillsEnabled: readBoolean(merged.skillsEnabled, "skills-enabled"),
   };
-
-  if (!validated.openapiEnabled && validated.skillsEnabled) {
-    const skillsWasExplicitlyEnabled =
-      options.skills !== undefined || config.skills !== undefined || process.env.POSTGREST_LITE_SKILLS !== undefined;
-
-    if (skillsWasExplicitlyEnabled) {
-      console.warn("WARN: Skills require OpenAPI. Disabling skills.");
-    }
-    validated.skillsEnabled = false;
-  }
 
   validatePortUniqueness([validated.port, validated.pgPort, validated.postgrestPort, validated.adminPort]);
 
   return validated;
 }
 
-export function resolveDoctorConfig(options: PrimitiveOptions): DoctorConfig {
+export async function resolveDoctorConfig(options: PrimitiveOptions): Promise<DoctorConfig> {
   const config = rc("postgrest-lite", DEFAULT_DOCTOR_CONFIG);
   const merged = { ...config, ...options };
 
+  const host = readString(merged.host, "host");
+  const port = readPort(merged.port, "port");
+  const [pgPort, postgrestPort, adminPort] = await allocatePorts(host, 3);
+
   const validated: DoctorConfig = {
-    host: readString(merged.host, "host"),
-    port: readPort(merged.port, "port"),
-    pgPort: readPort(merged.pgPort, "pg-port"),
-    postgrestPort: readPort(merged.postgrestPort, "postgrest-port"),
-    adminPort: readPort(merged.adminPort, "admin-port"),
+    host,
+    port,
+    pgPort,
+    postgrestPort,
+    adminPort,
     postgrestBin: readOptionalAbsolutePath(merged.postgrestBin, "postgrest-bin"),
     bootstrap: resolveBootstrapPath(merged.bootstrap),
     json: readBoolean(merged.json, "json"),
@@ -116,8 +96,6 @@ export function resolveDoctorConfig(options: PrimitiveOptions): DoctorConfig {
 
   return validated;
 }
-
-// --- Helpers ---
 
 function readString(value: unknown, label: string): string {
   const s = String(value ?? "").trim();
@@ -140,10 +118,6 @@ function readOptionalAbsolutePath(value: unknown, label: string): string | undef
 
 function readPort(value: unknown, label: string): number {
   return readInteger(value, label, (v) => v >= 1 && v <= 65535, "must be between 1 and 65535");
-}
-
-function readNonNegativeInteger(value: unknown, label: string): number {
-  return readInteger(value, label, (v) => v >= 0, "must be zero or greater");
 }
 
 function readInteger(value: unknown, label: string, predicate: (v: number) => boolean, message: string): number {

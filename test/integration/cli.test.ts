@@ -34,26 +34,10 @@ describe.sequential("cli contract", () => {
       expect(versionResult.stdout).toContain("postgrest-lite 0.1.0");
 
       const port = await getFreePort("127.0.0.1");
-      const pgPort = await getFreePort("127.0.0.1");
-      const postgrestPort = await getFreePort("127.0.0.1");
-      const adminPort = await getFreePort("127.0.0.1");
 
       const doctorResult = spawnSync(
         "node",
-        [
-          "bin/postgrest-lite.js",
-          "doctor",
-          "--port",
-          String(port),
-          "--pg-port",
-          String(pgPort),
-          "--postgrest-port",
-          String(postgrestPort),
-          "--admin-port",
-          String(adminPort),
-          "--postgrest-bin",
-          binaryPath,
-        ],
+        ["bin/postgrest-lite.js", "doctor", "--port", String(port), "--postgrest-bin", binaryPath],
         {
           cwd: process.cwd(),
           encoding: "utf8",
@@ -71,12 +55,6 @@ describe.sequential("cli contract", () => {
           "127.0.0.1",
           "--port",
           String(port),
-          "--pg-port",
-          String(pgPort),
-          "--postgrest-port",
-          String(postgrestPort),
-          "--admin-port",
-          String(adminPort),
           "--postgrest-bin",
           binaryPath,
         ],

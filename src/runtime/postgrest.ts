@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 
+import { ANON_ROLE, READY_TIMEOUT_MS, SCHEMA } from "./config.js";
 import { CliError } from "./errors";
 import type { createLogger } from "./logger";
 import { waitFor } from "./network";
@@ -17,11 +18,8 @@ export interface PostgrestRuntime {
 export interface StartPostgrestOptions {
   binaryPath: string;
   pgPort: number;
-  schema: string;
-  dbAnonRole: string;
   postgrestPort: number;
   adminPort: number;
-  readyTimeoutMs: number;
   logger: ReturnType<typeof createLogger>;
 }
 
@@ -30,8 +28,8 @@ export async function startPostgrestRuntime(options: StartPostgrestOptions): Pro
   const env = {
     ...process.env,
     PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${options.pgPort}/postgres?sslmode=disable`,
-    PGRST_DB_SCHEMAS: options.schema,
-    PGRST_DB_ANON_ROLE: options.dbAnonRole,
+    PGRST_DB_SCHEMAS: SCHEMA,
+    PGRST_DB_ANON_ROLE: ANON_ROLE,
     PGRST_SERVER_PORT: String(options.postgrestPort),
     PGRST_ADMIN_SERVER_PORT: String(options.adminPort),
     PGRST_DB_CHANNEL_ENABLED: "false",
@@ -72,7 +70,7 @@ export async function startPostgrestRuntime(options: StartPostgrestOptions): Pro
     logger(`PostgREST process exited (code: ${code}, signal: ${signal})`);
   });
 
-  await waitForPostgrestReady(`http://127.0.0.1:${options.adminPort}/ready`, options.readyTimeoutMs, child);
+  await waitForPostgrestReady(`http://127.0.0.1:${options.adminPort}/ready`, READY_TIMEOUT_MS, child);
   ready = true;
   logger(`PostgREST is ready (postgrestPort: ${options.postgrestPort}, adminPort: ${options.adminPort})`);
 

@@ -37,15 +37,10 @@ Defaults:
 
 - `--host 127.0.0.1`
 - `--port 8080`
-- `--pg-port 5432`
-- `--postgrest-port 3000`
-- `--admin-port 3001`
-- `--postgrest-version 14.10`
-- `--schema api`
-- `--db-anon-role anon`
 - `--bootstrap sql/bootstrap.sql`
-- `--ready-timeout-ms 30000`
-- `--log-level info`
+- `--postgrest-bin` (auto-resolved from cache)
+
+Internal ports (PG wire, PostgREST, admin) are auto-allocated at startup.
 
 Example:
 
@@ -86,16 +81,8 @@ node bin/postgrest-lite.js version
 
 - `POSTGREST_LITE_HOST`
 - `POSTGREST_LITE_PORT`
-- `POSTGREST_LITE_PG_PORT`
-- `POSTGREST_LITE_POSTGREST_PORT`
-- `POSTGREST_LITE_ADMIN_PORT`
-- `POSTGREST_LITE_POSTGREST_VERSION`
 - `POSTGREST_LITE_POSTGREST_BIN`
-- `POSTGREST_LITE_SCHEMA`
-- `POSTGREST_LITE_DB_ANON_ROLE`
 - `POSTGREST_LITE_BOOTSTRAP`
-- `POSTGREST_LITE_READY_TIMEOUT_MS`
-- `POSTGREST_LITE_LOG_LEVEL`
 - `POSTGREST_LITE_JSON`
 
 CLI flags override environment variables. Environment variables override built-in defaults.

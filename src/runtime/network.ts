@@ -1,5 +1,7 @@
 import net from "node:net";
 
+import { CliError } from "./errors.js";
+
 export function waitFor(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -57,4 +59,21 @@ export async function getFreePort(host = "127.0.0.1"): Promise<number> {
     });
     server.once("error", reject);
   });
+}
+
+export async function allocatePorts(host: string, count: number): Promise<number[]> {
+  const ports: number[] = [];
+  try {
+    for (let i = 0; i < count; i++) {
+      const port = await getFreePort(host);
+      if (ports.includes(port)) {
+        throw new CliError(`Duplicate port ${port} allocated — uniqueness guarantee violated`);
+      }
+      ports.push(port);
+    }
+  } catch (err) {
+    if (err instanceof CliError) throw err;
+    throw new CliError(`Failed to allocate ${count} free ports on ${host}`);
+  }
+  return ports;
 }
